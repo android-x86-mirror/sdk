@@ -1,3 +1,4 @@
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := qwerty.kcm
@@ -16,3 +17,4 @@ file := $(TARGET_OUT_KEYLAYOUT)/AVRCP.kl
 ALL_PREBUILT += $(file)
 $(file) : $(LOCAL_PATH)/AVRCP.kl | $(ACP)
 	$(transform-prebuilt-to-target)
+endif

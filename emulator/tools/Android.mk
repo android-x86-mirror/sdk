@@ -16,6 +16,7 @@
 # that should only run in the emulator.
 #
 
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_PATH := $(call my-dir)
 
 ifneq ($(TARGET_PRODUCT),sim)
@@ -33,4 +34,4 @@ LOCAL_MODULE_TAGS := debug
 include $(BUILD_EXECUTABLE)
 
 endif # TARGET_PRODUCT != sim
-
+endif
