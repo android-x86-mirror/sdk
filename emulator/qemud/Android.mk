@@ -1,5 +1,6 @@
 # Copyright 2008 The Android Open Source Project
 
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -14,3 +15,4 @@ LOCAL_MODULE:= qemud
 LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_EXECUTABLE)
+endif

@@ -4,6 +4,7 @@
 # Java method trace dump tool
 #
 
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_PATH:= $(call my-dir)
 
 common_includes := external/qemu
@@ -155,3 +156,4 @@ LOCAL_C_INCLUDES += $(common_includes)
 LOCAL_CFLAGS += $(common_cflags)
 LOCAL_MODULE := dump_regions
 include $(BUILD_HOST_EXECUTABLE)
+endif

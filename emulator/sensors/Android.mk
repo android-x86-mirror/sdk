@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_PATH := $(call my-dir)
 
 ifneq ($(TARGET_PRODUCT),sim)
@@ -26,4 +26,5 @@ LOCAL_SRC_FILES := sensors_qemu.c
 LOCAL_MODULE := sensors.goldfish
 LOCAL_MODULE_TAGS := debug
 include $(BUILD_SHARED_LIBRARY)
+endif
 endif
