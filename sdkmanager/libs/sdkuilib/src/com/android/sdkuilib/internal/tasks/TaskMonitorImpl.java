@@ -38,6 +38,14 @@ class TaskMonitorImpl implements ITaskMonitor {
     private final IProgressUiProvider mUi;
 
     /**
+     * Returns true if the given {@code monitor} is an instance of {@link TaskMonitorImpl}
+     * or its private SubTaskMonitor.
+     */
+    public static boolean isTaskMonitorImpl(ITaskMonitor monitor) {
+        return monitor instanceof TaskMonitorImpl || monitor instanceof SubTaskMonitor;
+    }
+
+    /**
      * Constructs a new {@link TaskMonitorImpl} that relies on the given
      * {@link IProgressUiProvider} to change the user interface.
      * @param ui The {@link IProgressUiProvider}. Cannot be null.
@@ -108,6 +116,10 @@ class TaskMonitorImpl implements ITaskMonitor {
         assert mIncCoef > 0;
     }
 
+    public int getProgressMax() {
+        return mIncCoef > 0 ? (int) (MAX_COUNT / mIncCoef) : 0;
+    }
+
     /**
      * Increments the current value of the progress bar.
      *
@@ -167,6 +179,28 @@ class TaskMonitorImpl implements ITaskMonitor {
         return new SubTaskMonitor(this, null, mValue, tickCount * mIncCoef);
     }
 
+    // ----- ISdkLog interface ----
+
+    public void error(Throwable throwable, String errorFormat, Object... arg) {
+        if (errorFormat != null) {
+            logError("Error: " + errorFormat, arg);
+        }
+
+        if (throwable != null) {
+            logError("%s", throwable.getMessage()); //$NON-NLS-1$
+        }
+    }
+
+    public void warning(String warningFormat, Object... arg) {
+        log("Warning: " + warningFormat, arg);
+    }
+
+    public void printf(String msgFormat, Object... arg) {
+        log(msgFormat, arg);
+    }
+
+    // ----- Sub Monitor -----
+
     private static class SubTaskMonitor implements ISubTaskMonitor {
 
         private final TaskMonitorImpl mRoot;
@@ -222,6 +256,10 @@ class TaskMonitorImpl implements ITaskMonitor {
             assert mSubCoef > 0;
         }
 
+        public int getProgressMax() {
+            return mSubCoef > 0 ? (int) (mSpan / mSubCoef) : 0;
+        }
+
         public int getProgress() {
             assert mSubCoef > 0;
             return mSubCoef > 0 ? (int)((mSubValue - mStart) / mSubCoef) : 0;
@@ -254,6 +292,19 @@ class TaskMonitorImpl implements ITaskMonitor {
                     mSubValue,
                     tickCount * mSubCoef);
         }
-    }
 
+        // ----- ISdkLog interface ----
+
+        public void error(Throwable throwable, String errorFormat, Object... arg) {
+            mRoot.error(throwable, errorFormat, arg);
+        }
+
+        public void warning(String warningFormat, Object... arg) {
+            mRoot.warning(warningFormat, arg);
+        }
+
+        public void printf(String msgFormat, Object... arg) {
+            mRoot.printf(msgFormat, arg);
+        }
+    }
 }

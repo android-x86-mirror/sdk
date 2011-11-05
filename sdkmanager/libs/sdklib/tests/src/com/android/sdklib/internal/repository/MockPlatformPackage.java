@@ -39,7 +39,7 @@ public class MockPlatformPackage extends PlatformPackage {
      * By design, this package contains one and only one archive.
      */
     public MockPlatformPackage(int apiLevel, int revision) {
-        this(new MockPlatformTarget(apiLevel, revision), null /*props*/);
+        this(null /*source*/, new MockPlatformTarget(apiLevel, revision), null /*props*/);
     }
 
     /**
@@ -51,12 +51,18 @@ public class MockPlatformPackage extends PlatformPackage {
      * By design, this package contains one and only one archive.
      */
     public MockPlatformPackage(int apiLevel, int revision, int min_tools_rev) {
-        this(new MockPlatformTarget(apiLevel, revision), createProps(min_tools_rev));
+        this(null /*source*/,
+             new MockPlatformTarget(apiLevel, revision),
+             createProps(min_tools_rev));
+    }
+
+    public MockPlatformPackage(SdkSource source, int apiLevel, int revision, int min_tools_rev) {
+        this(source, new MockPlatformTarget(apiLevel, revision), createProps(min_tools_rev));
     }
 
     /** A little trick to be able to capture the target new after passing it to the super. */
-    private MockPlatformPackage(IAndroidTarget target, Properties props) {
-        super(target, props);
+    private MockPlatformPackage(SdkSource source, IAndroidTarget target, Properties props) {
+        super(source, target, props);
         mTarget = target;
     }
 
@@ -82,7 +88,6 @@ public class MockPlatformPackage extends PlatformPackage {
         public MockPlatformTarget(int apiLevel, int revision) {
             mApiLevel = apiLevel;
             mRevision = revision;
-
         }
 
         public String getClasspathName() {
@@ -115,10 +120,6 @@ public class MockPlatformPackage extends PlatformPackage {
 
         public String getLocation() {
             return "";
-        }
-
-        public String getName() {
-            return "mock platform target";
         }
 
         public IOptionalLibrary[] getOptionalLibraries() {
@@ -165,8 +166,20 @@ public class MockPlatformPackage extends PlatformPackage {
             return 0;
         }
 
+        /**
+         * Returns a vendor that depends on the parent *platform* API.
+         * This works well in Unit Tests where we'll typically have different
+         * platforms as unique identifiers.
+         */
         public String getVendor() {
-            return null;
+            return "vendor " + Integer.toString(mApiLevel);
+        }
+
+        /**
+         * Create a synthetic name using the target API level.
+         */
+        public String getName() {
+            return "platform r" + Integer.toString(mApiLevel);
         }
 
         public AndroidVersion getVersion() {

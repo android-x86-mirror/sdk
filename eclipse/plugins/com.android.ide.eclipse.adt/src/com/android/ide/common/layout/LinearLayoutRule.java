@@ -24,6 +24,7 @@ import static com.android.ide.common.layout.LayoutConstants.ATTR_LAYOUT_WEIGHT;
 import static com.android.ide.common.layout.LayoutConstants.ATTR_LAYOUT_WIDTH;
 import static com.android.ide.common.layout.LayoutConstants.ATTR_ORIENTATION;
 import static com.android.ide.common.layout.LayoutConstants.ATTR_WEIGHT_SUM;
+import static com.android.ide.common.layout.LayoutConstants.VALUE_1;
 import static com.android.ide.common.layout.LayoutConstants.VALUE_HORIZONTAL;
 import static com.android.ide.common.layout.LayoutConstants.VALUE_VERTICAL;
 import static com.android.ide.common.layout.LayoutConstants.VALUE_WRAP_CONTENT;
@@ -56,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -563,6 +565,12 @@ public class LinearLayoutRule extends BaseLayoutRule {
 
     @Override
     public void onChildInserted(INode node, INode parent, InsertType insertType) {
+        if (insertType == InsertType.MOVE_WITHIN) {
+            // Don't adjust widths/heights/weights when just moving within a single
+            // LinearLayout
+            return;
+        }
+
         // Attempt to set fill-properties on newly added views such that for example,
         // in a vertical layout, a text field defaults to filling horizontally, but not
         // vertically.
@@ -578,7 +586,10 @@ public class LinearLayoutRule extends BaseLayoutRule {
                 // In a horizontal layout, make views that would fill horizontally in a
                 // vertical layout have a non-zero weight instead. This will make the item
                 // fill but only enough to allow other views to be shown as well.
-                node.setAttribute(ANDROID_URI, ATTR_LAYOUT_WEIGHT, "1"); //$NON-NLS-1$
+                // (However, for drags within the same layout we do not touch
+                // the weight, since it might already have been tweaked to a particular
+                // value)
+                node.setAttribute(ANDROID_URI, ATTR_LAYOUT_WEIGHT, VALUE_1);
             }
             if (fill.fillVertically(vertical)) {
                 node.setAttribute(ANDROID_URI, ATTR_LAYOUT_HEIGHT, fillParent);
@@ -1006,7 +1017,7 @@ public class LinearLayoutRule extends BaseLayoutRule {
 
         if (resizeState.useWeight) {
             String weight = formatFloatAttribute(resizeState.mWeight);
-            String dimension = String.format("layout weight %1$s", weight);
+            String dimension = String.format("weight %1$s", weight);
 
             String width;
             String height;
@@ -1018,8 +1029,14 @@ public class LinearLayoutRule extends BaseLayoutRule {
                 height = resizeState.getHeightAttribute();
             }
 
-            // U+00D7: Unicode for multiplication sign
-            return String.format("Resize to %s \u00D7 %s", width, height);
+            if (horizontalEdge == null) {
+                return width;
+            } else if (verticalEdge == null) {
+                return height;
+            } else {
+                // U+00D7: Unicode for multiplication sign
+                return String.format("%s \u00D7 %s", width, height);
+            }
         } else {
             return super.getResizeUpdateMessage(state, child, parent, newBounds,
                     horizontalEdge, verticalEdge);
@@ -1078,7 +1095,9 @@ public class LinearLayoutRule extends BaseLayoutRule {
     @VisibleForTesting
     static String formatFloatAttribute(float value) {
         if (value != (int) value) {
-            return String.format("%.2f", value); //$NON-NLS-1$
+            // Run String.format without a locale, because we don't want locale-specific
+            // conversions here like separating the decimal part with a comma instead of a dot!
+            return String.format((Locale) null, "%.2f", value); //$NON-NLS-1$
         } else {
             return Integer.toString((int) value);
         }

@@ -15,3 +15,4 @@
 #
 CHIMPCHAT_LOCAL_DIR := $(call my-dir)
 include $(CHIMPCHAT_LOCAL_DIR)/src/Android.mk
+include $(CHIMPCHAT_LOCAL_DIR)/test/Android.mk

@@ -355,19 +355,13 @@ public class MoveGesture extends DropGesture {
         String label = computeUndoLabel(mTargetNode, elements, event.detail);
         mCanvas.getLayoutEditor().wrapUndoEditXmlModel(label, new Runnable() {
             public void run() {
-                InsertType insertType;
-                if (event.detail == DND.DROP_MOVE) {
-                    insertType = InsertType.MOVE;
-                } else if (GlobalCanvasDragInfo.getInstance().getSourceCanvas() != null) {
-                    insertType = InsertType.PASTE;
-                } else {
-                    insertType = InsertType.CREATE;
-                }
+                InsertType insertType = getInsertType(event, mTargetNode);
                 mCanvas.getRulesEngine().callOnDropped(mTargetNode,
                         elementsFinal,
                         mFeedback,
                         new Point(canvasPoint.x, canvasPoint.y),
                         insertType);
+                mTargetNode.applyPendingChanges();
                 // Clean up drag if applicable
                 if (event.detail == DND.DROP_MOVE) {
                     GlobalCanvasDragInfo.getInstance().removeSource();
@@ -404,6 +398,35 @@ public class MoveGesture extends DropGesture {
         // to another, because without it, the redraw does not seem to be processed (the change
         // is invisible until you click on the target canvas to give it focus).
         mCanvas.setFocus();
+    }
+
+    /**
+     * Returns the right {@link InsertType} to use for the given drop target event and the
+     * given target node
+     *
+     * @param event the drop target event
+     * @param mTargetNode the node targeted by the drop
+     * @return the {link InsertType} to use for the drop
+     */
+    public static InsertType getInsertType(DropTargetEvent event, NodeProxy mTargetNode) {
+        GlobalCanvasDragInfo dragInfo = GlobalCanvasDragInfo.getInstance();
+        if (event.detail == DND.DROP_MOVE) {
+            SelectionItem[] selection = dragInfo.getCurrentSelection();
+            if (selection != null) {
+                for (SelectionItem item : selection) {
+                    if (item.getNode() != null
+                            && item.getNode().getParent() == mTargetNode) {
+                        return InsertType.MOVE_WITHIN;
+                    }
+                }
+            }
+
+            return InsertType.MOVE_INTO;
+        } else if (dragInfo.getSourceCanvas() != null) {
+            return InsertType.PASTE;
+        } else {
+            return InsertType.CREATE;
+        }
     }
 
     /**
@@ -606,8 +629,6 @@ public class MoveGesture extends DropGesture {
                                                                   mCurrentDragElements);
 
                     if (df != null) {
-                        mCanvas.getGestureManager().updateMessage(df);
-
                         // We should also dispatch an onDropMove() call to the initial enter
                         // position, such that the view is notified of the position where
                         // we are within the node immediately (before we for example attempt
@@ -618,7 +639,6 @@ public class MoveGesture extends DropGesture {
                         updateDropFeedback(df, event);
                         df = mCanvas.getRulesEngine().callOnDropMove(targetNode,
                                 mCurrentDragElements, df, new Point(p.x, p.y));
-                        mCanvas.getGestureManager().updateMessage(df);
                     }
 
                     if (df != null &&

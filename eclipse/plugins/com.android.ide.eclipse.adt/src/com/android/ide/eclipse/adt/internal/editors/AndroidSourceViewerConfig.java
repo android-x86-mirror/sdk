@@ -17,6 +17,10 @@
 package com.android.ide.eclipse.adt.internal.editors;
 
 
+import com.android.ide.eclipse.adt.internal.editors.formatting.AndroidXmlFormatter;
+import com.android.ide.eclipse.adt.internal.editors.formatting.AndroidXmlFormattingStrategy;
+
+import org.eclipse.jface.text.DefaultAutoIndentStrategy;
 import org.eclipse.jface.text.IAutoEditStrategy;
 import org.eclipse.jface.text.ITextHover;
 import org.eclipse.jface.text.ITextViewer;
@@ -26,6 +30,7 @@ import org.eclipse.jface.text.contentassist.IContentAssistant;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
 import org.eclipse.jface.text.formatter.IContentFormatter;
+import org.eclipse.jface.text.formatter.MultiPassContentFormatter;
 import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.wst.sse.core.text.IStructuredPartitions;
 import org.eclipse.wst.xml.core.text.IXMLPartitions;
@@ -39,7 +44,7 @@ import java.util.Map;
 /**
  * Base Source Viewer Configuration for Android resources.
  */
-@SuppressWarnings("restriction") // XMLContentAssistProcessor
+@SuppressWarnings("restriction") // XMLContentAssistProcessor etc
 public class AndroidSourceViewerConfig extends StructuredTextViewerConfigurationXML {
 
     /** Content Assist Processor to use for all handled partitions. */
@@ -65,6 +70,7 @@ public class AndroidSourceViewerConfig extends StructuredTextViewerConfiguration
      *        processors are applicable
      * @return IContentAssistProcessors or null if should not be supported
      */
+    @SuppressWarnings("deprecation") // XMLContentAssistProcessor
     @Override
     protected IContentAssistProcessor[] getContentAssistProcessors(
             ISourceViewer sourceViewer, String partitionType) {
@@ -102,17 +108,37 @@ public class AndroidSourceViewerConfig extends StructuredTextViewerConfiguration
         return super.getTextHover(sourceViewer, contentType);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public IAutoEditStrategy[] getAutoEditStrategies(
             ISourceViewer sourceViewer, String contentType) {
-        // TODO auto edit strategies for android xml
-        return super.getAutoEditStrategies(sourceViewer, contentType);
+        IAutoEditStrategy[] strategies = super.getAutoEditStrategies(sourceViewer, contentType);
+        List<IAutoEditStrategy> s = new ArrayList<IAutoEditStrategy>(strategies.length + 1);
+        s.add(new AndroidXmlAutoEditStrategy());
+
+        // Add other registered strategies, except the builtin indentation strategy which is
+        // now handled by the above AndroidXmlAutoEditStrategy
+        for (IAutoEditStrategy strategy : strategies) {
+            if (strategy instanceof DefaultAutoIndentStrategy) {
+                continue;
+            }
+            s.add(strategy);
+        }
+
+        return s.toArray(new IAutoEditStrategy[s.size()]);
     }
 
     @Override
     public IContentFormatter getContentFormatter(ISourceViewer sourceViewer) {
-        // TODO content formatter for android xml
-        return super.getContentFormatter(sourceViewer);
+        IContentFormatter formatter = super.getContentFormatter(sourceViewer);
+
+        if (formatter instanceof MultiPassContentFormatter) {
+            ((MultiPassContentFormatter) formatter).setMasterStrategy(
+                    new AndroidXmlFormattingStrategy());
+            return formatter;
+        } else {
+            return new AndroidXmlFormatter();
+        }
     }
 
     @Override

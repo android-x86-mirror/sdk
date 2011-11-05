@@ -43,7 +43,8 @@ class SdkCommandLine extends CommandLineProcessor {
     public final static String VERB_MOVE    = "move";                               //$NON-NLS-1$
     public final static String VERB_DELETE  = "delete";                             //$NON-NLS-1$
     public final static String VERB_UPDATE  = "update";                             //$NON-NLS-1$
-    public final static String VERB_DISPLAY = "display";                            //$NON-NLS-1$
+    public final static String VERB_SDK     = "sdk";                                //$NON-NLS-1$
+    public final static String VERB_AVD     = "avd";                                //$NON-NLS-1$
 
     public static final String OBJECT_SDK            = "sdk";                       //$NON-NLS-1$
     public static final String OBJECT_AVD            = "avd";                       //$NON-NLS-1$
@@ -82,6 +83,7 @@ class SdkCommandLine extends CommandLineProcessor {
     public static final String KEY_SNAPSHOT     = "snapshot";                       //$NON-NLS-1$
     public static final String KEY_COMPACT      = "compact";                        //$NON-NLS-1$
     public static final String KEY_EOL_NULL     = "null";                           //$NON-NLS-1$
+    public static final String KEY_ABI          = "abi";                            //$NON-NLS-1$
 
     /**
      * Action definitions for SdkManager command line.
@@ -99,6 +101,13 @@ class SdkCommandLine extends CommandLineProcessor {
      * </ul>
      */
     private final static String[][] ACTIONS = {
+
+            { VERB_SDK, NO_VERB_OBJECT,
+                "Displays the SDK Manager window." },
+            { VERB_AVD, NO_VERB_OBJECT,
+                "Displays the AVD Manager window.",
+                },
+
             { VERB_LIST, NO_VERB_OBJECT,
                 "Lists existing targets or virtual devices." },
             { VERB_LIST, OBJECT_AVD,
@@ -145,12 +154,6 @@ class SdkCommandLine extends CommandLineProcessor {
 
             { VERB_UPDATE, OBJECT_SDK,
                 "Updates the SDK by suggesting new platforms to install if available." },
-
-            { VERB_DISPLAY, OBJECT_SDK,
-                "Displays the SDK Manager window." },
-            { VERB_DISPLAY, OBJECT_AVD,
-                "Displays the AVD Manager window.",
-                OBJECT_AVDS },
     };
 
     public SdkCommandLine(ISdkLog logger) {
@@ -184,43 +187,47 @@ class SdkCommandLine extends CommandLineProcessor {
 
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_AVD, "p", KEY_PATH,                             //$NON-NLS-1$
-                "Directory where the new AVD will be created", null);
+                "Directory where the new AVD will be created.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_AVD, "n", KEY_NAME,                             //$NON-NLS-1$
-                "Name of the new AVD", null);
+                "Name of the new AVD.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_AVD, "t", KEY_TARGET_ID,                        //$NON-NLS-1$
-                "Target ID of the new AVD", null);
+                "Target ID of the new AVD.", null);
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_AVD, "s", KEY_SKIN,                             //$NON-NLS-1$
-                "Skin for the new AVD", null);
+                "Skin for the new AVD.", null);
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_AVD, "c", KEY_SDCARD,                           //$NON-NLS-1$
-                "Path to a shared SD card image, or size of a new sdcard for the new AVD", null);
+                "Path to a shared SD card image, or size of a new sdcard for the new AVD.", null);
         define(Mode.BOOLEAN, false,
                 VERB_CREATE, OBJECT_AVD, "f", KEY_FORCE,                            //$NON-NLS-1$
                 "Forces creation (overwrites an existing AVD)", false);
         define(Mode.BOOLEAN, false,
                 VERB_CREATE, OBJECT_AVD, "a", KEY_SNAPSHOT,                         //$NON-NLS-1$
                 "Place a snapshots file in the AVD, to enable persistence.", false);
+        define(Mode.STRING, false,
+                VERB_CREATE, OBJECT_AVD, "b", KEY_ABI,                           //$NON-NLS-1$
+                "The ABI to use for the AVD. The default is to auto-select the ABI if the platform has only one ABI for its system images.",
+                null);
 
         // --- delete avd ---
 
         define(Mode.STRING, true,
                 VERB_DELETE, OBJECT_AVD, "n", KEY_NAME,                             //$NON-NLS-1$
-                "Name of the AVD to delete", null);
+                "Name of the AVD to delete.", null);
 
         // --- move avd ---
 
         define(Mode.STRING, true,
                 VERB_MOVE, OBJECT_AVD, "n", KEY_NAME,                               //$NON-NLS-1$
-                "Name of the AVD to move or rename", null);
+                "Name of the AVD to move or rename.", null);
         define(Mode.STRING, false,
                 VERB_MOVE, OBJECT_AVD, "r", KEY_RENAME,                             //$NON-NLS-1$
-                "New name of the AVD", null);
+                "New name of the AVD.", null);
         define(Mode.STRING, false,
                 VERB_MOVE, OBJECT_AVD, "p", KEY_PATH,                               //$NON-NLS-1$
-                "Path to the AVD's new directory", null);
+                "Path to the AVD's new directory.", null);
 
         // --- update avd ---
 
@@ -236,7 +243,7 @@ class SdkCommandLine extends CommandLineProcessor {
 
         define(Mode.BOOLEAN, false,
                 VERB_LIST, OBJECT_SDK, "s", KEY_NO_HTTPS,                           //$NON-NLS-1$
-                "Uses HTTP instead of HTTPS (the default) for downloads", false);
+                "Uses HTTP instead of HTTPS (the default) for downloads.", false);
 
         define(Mode.STRING, false,
                 VERB_LIST, OBJECT_SDK, "", KEY_PROXY_PORT,                          //$NON-NLS-1$
@@ -250,7 +257,7 @@ class SdkCommandLine extends CommandLineProcessor {
 
         define(Mode.BOOLEAN, false,
                 VERB_LIST, OBJECT_SDK, "o", KEY_OBSOLETE,                           //$NON-NLS-1$
-                "Installs obsolete packages",
+                "Installs obsolete packages.",
                 false);
 
         // --- update sdk ---
@@ -261,7 +268,7 @@ class SdkCommandLine extends CommandLineProcessor {
 
         define(Mode.BOOLEAN, false,
                 VERB_UPDATE, OBJECT_SDK, "s", KEY_NO_HTTPS,                         //$NON-NLS-1$
-                "Uses HTTP instead of HTTPS (the default) for downloads", false);
+                "Uses HTTP instead of HTTPS (the default) for downloads.", false);
 
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_SDK, "", KEY_PROXY_PORT,                        //$NON-NLS-1$
@@ -275,23 +282,23 @@ class SdkCommandLine extends CommandLineProcessor {
 
         define(Mode.BOOLEAN, false,
                 VERB_UPDATE, OBJECT_SDK, "f", KEY_FORCE,                            //$NON-NLS-1$
-                "Forces replacement of a package or its parts, even if something has been modified",
+                "Forces replacement of a package or its parts, even if something has been modified.",
                 false);
 
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_SDK, "t", KEY_FILTER,                           //$NON-NLS-1$
-                "A filter that limits the update to the specified types of packages in the form of\n" +
-                "a comma-separated list of " + Arrays.toString(SdkRepoConstants.NODES),
+                "A filter that limits the update to the specified types of packages in the form of a comma-separated list of " +
+                Arrays.toString(SdkRepoConstants.NODES),
                 null);
 
         define(Mode.BOOLEAN, false,
                 VERB_UPDATE, OBJECT_SDK, "o", KEY_OBSOLETE,                         //$NON-NLS-1$
-                "Installs obsolete packages",
+                "Installs obsolete packages.",
                 false);
 
         define(Mode.BOOLEAN, false,
                 VERB_UPDATE, OBJECT_SDK, "n", KEY_DRY_MODE,                         //$NON-NLS-1$
-                "Simulates the update but does not download or install anything",
+                "Simulates the update but does not download or install anything.",
                 false);
 
         // --- create project ---
@@ -306,47 +313,47 @@ class SdkCommandLine extends CommandLineProcessor {
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_PROJECT,
                 "p", KEY_PATH,
-                "The new project's directory", null);
+                "The new project's directory.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_PROJECT, "t", KEY_TARGET_ID,                    //$NON-NLS-1$
-                "Target ID of the new project", null);
+                "Target ID of the new project.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_PROJECT, "k", KEY_PACKAGE,                      //$NON-NLS-1$
-                "Android package name for the application", null);
+                "Android package name for the application.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_PROJECT, "a", KEY_ACTIVITY,                     //$NON-NLS-1$
-                "Name of the default Activity that is created", null);
+                "Name of the default Activity that is created.", null);
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_PROJECT, "n", KEY_NAME,                         //$NON-NLS-1$
-                "Project name", null);
+                "Project name.", null);
 
         // --- create test-project ---
 
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_TEST_PROJECT, "p", KEY_PATH,                    //$NON-NLS-1$
-                "The new project's directory", null);
+                "The new project's directory.", null);
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_TEST_PROJECT, "n", KEY_NAME,                    //$NON-NLS-1$
-                "Project name", null);
+                "Project name.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_TEST_PROJECT, "m", KEY_MAIN_PROJECT,            //$NON-NLS-1$
-                "Path to directory of the app under test, relative to the test project directory",
+                "Path to directory of the app under test, relative to the test project directory.",
                 null);
 
         // --- create lib-project ---
 
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_LIB_PROJECT, "p", KEY_PATH,                     //$NON-NLS-1$
-                "The new project's directory", null);
+                "The new project's directory.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_LIB_PROJECT, "t", KEY_TARGET_ID,                //$NON-NLS-1$
-                "Target ID of the new project", null);
+                "Target ID of the new project.", null);
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_LIB_PROJECT, "n", KEY_NAME,                     //$NON-NLS-1$
-                "Project name", null);
+                "Project name.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_LIB_PROJECT, "k", KEY_PACKAGE,                  //$NON-NLS-1$
-                "Android package name for the library", null);
+                "Android package name for the library.", null);
 
         // --- create export-project ---
 /*
@@ -354,63 +361,63 @@ class SdkCommandLine extends CommandLineProcessor {
 
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_EXPORT_PROJECT, "p", KEY_PATH,                  //$NON-NLS-1$
-                "Location path of new project", null);
+                "Location path of new project.", null);
         define(Mode.STRING, false,
                 VERB_CREATE, OBJECT_EXPORT_PROJECT, "n", KEY_NAME,                  //$NON-NLS-1$
-                "Project name", null);
+                "Project name.", null);
         define(Mode.STRING, true,
                 VERB_CREATE, OBJECT_EXPORT_PROJECT, "k", KEY_PACKAGE,               //$NON-NLS-1$
-                "Package name", null);
+                "Package name.", null);
 */
         // --- update project ---
 
         define(Mode.STRING, true,
                 VERB_UPDATE, OBJECT_PROJECT, "p", KEY_PATH,                         //$NON-NLS-1$
-                "The project's directory", null);
+                "The project's directory.", null);
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_PROJECT, "t", KEY_TARGET_ID,                    //$NON-NLS-1$
-                "Target ID to set for the project", null);
+                "Target ID to set for the project.", null);
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_PROJECT, "n", KEY_NAME,                         //$NON-NLS-1$
-                "Project name", null);
+                "Project name.", null);
         define(Mode.BOOLEAN, false,
                 VERB_UPDATE, OBJECT_PROJECT, "s", KEY_SUBPROJECTS,                  //$NON-NLS-1$
                 "Also updates any projects in sub-folders, such as test projects.", false);
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_PROJECT, "l", KEY_LIBRARY,                      //$NON-NLS-1$
-                "Directory of an Android library to add, relative to this project's directory",
+                "Directory of an Android library to add, relative to this project's directory.",
                 null);
 
         // --- update test project ---
 
         define(Mode.STRING, true,
                 VERB_UPDATE, OBJECT_TEST_PROJECT, "p", KEY_PATH,                    //$NON-NLS-1$
-                "The project's directory", null);
+                "The project's directory.", null);
         define(Mode.STRING, true,
                 VERB_UPDATE, OBJECT_TEST_PROJECT, "m", KEY_MAIN_PROJECT,            //$NON-NLS-1$
-                "Directory of the app under test, relative to the test project directory", null);
+                "Directory of the app under test, relative to the test project directory.", null);
 
         // --- update lib project ---
 
         define(Mode.STRING, true,
                 VERB_UPDATE, OBJECT_LIB_PROJECT, "p", KEY_PATH,                     //$NON-NLS-1$
-                "The project's directory", null);
+                "The project's directory.", null);
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_LIB_PROJECT, "t", KEY_TARGET_ID,                //$NON-NLS-1$
-                "Target ID to set for the project", null);
+                "Target ID to set for the project.", null);
 
         // --- update export project ---
 /*
  * disabled until the feature is officially supported.
         define(Mode.STRING, true,
                 VERB_UPDATE, OBJECT_EXPORT_PROJECT, "p", KEY_PATH,                  //$NON-NLS-1$
-                "Location path of the project", null);
+                "Location path of the project.", null);
         define(Mode.STRING, false,
                 VERB_UPDATE, OBJECT_EXPORT_PROJECT, "n", KEY_NAME,                  //$NON-NLS-1$
-                "Project name", null);
+                "Project name.", null);
         define(Mode.BOOLEAN, false,
                 VERB_UPDATE, OBJECT_EXPORT_PROJECT, "f", KEY_FORCE,                 //$NON-NLS-1$
-                "Force replacing the build.xml file", false);
+                "Force replacing the build.xml file.", false);
 */
     }
 
@@ -533,6 +540,11 @@ class SdkCommandLine extends CommandLineProcessor {
     /** Helper to retrieve the --filter value. */
     public String getParamFilter() {
         return ((String) getValue(null, null, KEY_FILTER));
+    }
+
+    /** Helper to retrieve the --abi value. */
+    public String getParamAbi() {
+        return ((String) getValue(null, null, KEY_ABI));
     }
 
     /** Helper to retrieve the --proxy-host value. */

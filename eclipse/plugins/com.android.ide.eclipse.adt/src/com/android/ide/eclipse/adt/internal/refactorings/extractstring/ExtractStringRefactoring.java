@@ -719,7 +719,7 @@ public class ExtractStringRefactoring extends Refactoring {
      * @return The attribute value, without quotes. Whitespace is not trimmed, if any.
      *         String may be empty, but not null.
      */
-    private String unquoteAttrValue(String attrValue) {
+    static String unquoteAttrValue(String attrValue) {
         int len = attrValue.length();
         int len1 = len - 1;
         if (len >= 2 &&
@@ -755,7 +755,7 @@ public class ExtractStringRefactoring extends Refactoring {
                 name = name.substring(pos + 1);
             }
 
-            for (UiAttributeNode attrNode : currentUiNode.getUiAttributes()) {
+            for (UiAttributeNode attrNode : currentUiNode.getAllUiAttributes()) {
                 if (attrNode.getDescriptor().getXmlLocalName().equals(name)) {
                     AttributeDescriptor desc = attrNode.getDescriptor();
                     if (desc instanceof ReferenceAttributeDescriptor) {
@@ -930,6 +930,8 @@ public class ExtractStringRefactoring extends Refactoring {
             }
 
             if (mReplaceAllJava) {
+                String currentIdentifier = mUnit != null ? mUnit.getHandleIdentifier() : ""; //$NON-NLS-1$
+
                 SubMonitor submon = SubMonitor.convert(monitor, 1);
                 for (ICompilationUnit unit : findAllJavaUnits()) {
                     // Only process Java compilation units that exist, are not derived
@@ -941,6 +943,13 @@ public class ExtractStringRefactoring extends Refactoring {
                     if (resource == null || resource.isDerived()) {
                         continue;
                     }
+
+                    // Ensure that we don't process the current compilation unit (processed
+                    // as mUnit above) twice
+                    if (currentIdentifier.equals(unit.getHandleIdentifier())) {
+                        continue;
+                    }
+
                     ResourceAttributes attrs = resource.getResourceAttributes();
                     if (attrs != null && attrs.isReadOnly()) {
                         continue;

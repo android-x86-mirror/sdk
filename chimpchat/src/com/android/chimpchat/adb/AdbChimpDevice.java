@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 The Android Open Source Project
+ * Copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,13 @@ import com.android.ddmlib.ShellCommandUnresponsiveException;
 import com.android.ddmlib.TimeoutException;
 import com.android.chimpchat.ChimpManager;
 import com.android.chimpchat.adb.LinearInterpolator.Point;
+import com.android.chimpchat.core.ChimpRect;
 import com.android.chimpchat.core.IChimpImage;
 import com.android.chimpchat.core.IChimpDevice;
+import com.android.chimpchat.core.IChimpView;
+import com.android.chimpchat.core.IMultiSelector;
+import com.android.chimpchat.core.ISelector;
+import com.android.chimpchat.core.PhysicalButton;
 import com.android.chimpchat.core.TouchPressType;
 import com.android.chimpchat.hierarchyviewer.HierarchyViewer;
 
@@ -36,6 +41,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +86,8 @@ public class AdbChimpDevice implements IChimpDevice {
         } catch (IOException e) {
             LOG.log(Level.SEVERE, "Error getting the manager to quit", e);
         }
+        manager.close();
+        executor.shutdown();
         manager = null;
     }
 
@@ -228,6 +236,16 @@ public class AdbChimpDevice implements IChimpDevice {
     }
 
     @Override
+    public Collection<String> getPropertyList() {
+        try {
+            return manager.listVariable();
+        } catch (IOException e) {
+            LOG.log(Level.SEVERE, "Unable to get variable list", e);
+            return null;
+        }
+    }
+
+    @Override
     public void wake() {
         try {
             manager.wake();
@@ -313,6 +331,11 @@ public class AdbChimpDevice implements IChimpDevice {
         } catch (IOException e) {
             LOG.log(Level.SEVERE, "Error sending press event: " + keyName + " " + type, e);
         }
+    }
+
+    @Override
+    public void press(PhysicalButton key, TouchPressType type) {
+      press(key.getKeyName(), type);
     }
 
     @Override
@@ -553,5 +576,36 @@ public class AdbChimpDevice implements IChimpDevice {
                 }
             }
         });
+    }
+
+
+    @Override
+    public Collection<String> getViewIdList() {
+        try {
+            return manager.listViewIds();
+        } catch(IOException e) {
+            LOG.log(Level.SEVERE, "Error retrieving view IDs", e);
+            return new ArrayList<String>();
+        }
+    }
+
+    @Override
+    public IChimpView getView(ISelector selector) {
+        return selector.getView(manager);
+    }
+
+    @Override
+    public Collection<IChimpView> getViews(IMultiSelector selector) {
+        return selector.getViews(manager);
+    }
+
+    @Override
+    public IChimpView getRootView() {
+        try {
+            return manager.getRootView();
+        } catch (IOException e) {
+            LOG.log(Level.SEVERE, "Error retrieving root view");
+            return null;
+        }
     }
 }

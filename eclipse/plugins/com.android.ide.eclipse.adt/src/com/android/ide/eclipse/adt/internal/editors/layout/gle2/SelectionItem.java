@@ -75,10 +75,21 @@ class SelectionItem {
     /**
      * Returns true when this selection item represents the root, the top level
      * layout element in the editor.
+     *
      * @return True if and only if this element is at the root of the hierarchy
      */
     public boolean isRoot() {
         return mCanvasViewInfo.isRoot();
+    }
+
+    /**
+     * Returns true if this item represents a widget that should not be manipulated by the
+     * user.
+     *
+     * @return True if this widget should not be manipulated directly by the user
+     */
+    public boolean isHidden() {
+        return mCanvasViewInfo.isHidden();
     }
 
     /**
@@ -102,6 +113,11 @@ class SelectionItem {
     /** Returns the node associated with this selection (may be null) */
     NodeProxy getNode() {
         return mNodeProxy;
+    }
+
+    /** Returns the canvas associated with this selection (never null) */
+    LayoutCanvas getCanvas() {
+        return mCanvas;
     }
 
     //----

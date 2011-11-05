@@ -18,6 +18,8 @@ package com.android.traceview;
 
 import com.android.sdkstats.SdkStatsService;
 
+import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.window.ApplicationWindow;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
@@ -54,6 +56,8 @@ public class MainWindow extends ApplicationWindow {
         super(null);
         mReader = reader;
         mTraceName = traceName;
+
+        addMenuBar();
     }
 
     public void run() {
@@ -104,6 +108,30 @@ public class MainWindow extends ApplicationWindow {
         // Create the profile view
         new ProfileView(sashForm1, mReader, selectionController);
         return sashForm1;
+    }
+
+    @Override
+    protected MenuManager createMenuManager() {
+        MenuManager manager = super.createMenuManager();
+
+        MenuManager viewMenu = new MenuManager("View");
+        manager.add(viewMenu);
+
+        Action showPropertiesAction = new Action("Show Properties...") {
+            @Override
+            public void run() {
+                showProperties();
+            }
+        };
+        viewMenu.add(showPropertiesAction);
+
+        return manager;
+    }
+
+    private void showProperties() {
+        PropertiesDialog dialog = new PropertiesDialog(getShell());
+        dialog.setProperties(mReader.getProperties());
+        dialog.open();
     }
 
     /**
@@ -173,7 +201,7 @@ public class MainWindow extends ApplicationWindow {
 
         String revision = getRevision();
         if (revision != null) {
-            SdkStatsService.ping(PING_NAME, revision, null);
+            SdkStatsService.ping(PING_NAME, revision, null /*eclipseView*/, null);
         }
 
         // Process command line arguments
@@ -225,8 +253,16 @@ public class MainWindow extends ApplicationWindow {
                 }
             }
 
-            reader = new DmTraceReader(traceName, regression);
+            try {
+                reader = new DmTraceReader(traceName, regression);
+            } catch (IOException e) {
+                System.err.printf("Failed to read the trace file");
+                e.printStackTrace();
+                System.exit(1);
+                return;
+            }
         }
+
         reader.getTraceUnits().setTimeScale(TraceUnits.TimeScale.MilliSeconds);
 
         Display.setAppName("Traceview");

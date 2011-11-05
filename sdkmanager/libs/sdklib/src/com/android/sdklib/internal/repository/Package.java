@@ -28,6 +28,7 @@ import org.w3c.dom.Node;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
 
@@ -72,7 +73,9 @@ public abstract class Package implements IDescription, Comparable<Package> {
     public static enum UpdateInfo {
         /** Means that the 2 packages are not the same thing */
         INCOMPATIBLE,
-        /** Means that the 2 packages are the same thing but one does not upgrade the other */
+        /** Means that the 2 packages are the same thing but one does not upgrade the other.
+         *  </p>
+         *  TODO: this name is confusing. We need to dig deeper. */
         NOT_UPDATE,
         /** Means that the 2 packages are the same thing, and one is the upgrade of the other */
         UPDATE;
@@ -239,6 +242,7 @@ public abstract class Package implements IDescription, Comparable<Package> {
 
     /**
      * Parses an XML node to process the <archives> element.
+     * Always return a non-null array. The array may be empty.
      */
     private Archive[] parseArchives(Node archivesNode) {
         ArrayList<Archive> archives = new ArrayList<Archive>();
@@ -350,6 +354,19 @@ public abstract class Package implements IDescription, Comparable<Package> {
     }
 
     /**
+     * Returns true if this package contains the exact given archive.
+     * Important: This compares object references, not object equality.
+     */
+    public boolean hasArchive(Archive archive) {
+        for (Archive a : mArchives) {
+            if (a == archive) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns whether the {@link Package} has at least one {@link Archive} compatible with
      * the host platform.
      */
@@ -431,6 +448,15 @@ public abstract class Package implements IDescription, Comparable<Package> {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * A package is local (that is 'installed locally') if it contains a single
+     * archive that is local. If not local, it's a remote package, only available
+     * on a remote source for download and installation.
+     */
+    public boolean isLocal() {
+        return mArchives.length == 1 && mArchives[0].isLocal();
     }
 
     /**
@@ -537,7 +563,6 @@ public abstract class Package implements IDescription, Comparable<Package> {
         return UpdateInfo.NOT_UPDATE;
     }
 
-
     /**
      * Returns an ordering like this: <br/>
      * - Tools <br/>
@@ -636,4 +661,49 @@ public abstract class Package implements IDescription, Comparable<Package> {
         return sb.toString();
     }
 
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + Arrays.hashCode(mArchives);
+        result = prime * result + ((mObsolete == null) ? 0 : mObsolete.hashCode());
+        result = prime * result + mRevision;
+        result = prime * result + ((mSource == null) ? 0 : mSource.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof Package)) {
+            return false;
+        }
+        Package other = (Package) obj;
+        if (!Arrays.equals(mArchives, other.mArchives)) {
+            return false;
+        }
+        if (mObsolete == null) {
+            if (other.mObsolete != null) {
+                return false;
+            }
+        } else if (!mObsolete.equals(other.mObsolete)) {
+            return false;
+        }
+        if (mRevision != other.mRevision) {
+            return false;
+        }
+        if (mSource == null) {
+            if (other.mSource != null) {
+                return false;
+            }
+        } else if (!mSource.equals(other.mSource)) {
+            return false;
+        }
+        return true;
+    }
 }

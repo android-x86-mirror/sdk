@@ -535,7 +535,7 @@ public class RulesEngine {
         // (For example, a ScrollView parent can go and set all its children's layout params to
         // fill the parent.)
         if (!editor.isEditXmlModelPending()) {
-            editor.wrapUndoEditXmlModel("Customize creation", new Runnable() {
+            editor.wrapEditXmlModel(new Runnable() {
                 public void run() {
                     callCreateHooks(editor, insertType,
                             parentRule, parentNode, childRule, newNode);
@@ -555,6 +555,10 @@ public class RulesEngine {
         if (childRule != null) {
             childRule.onCreate(newNode, parentNode, insertType);
         }
+
+        if (parentNode != null) {
+            ((NodeProxy) parentNode).applyPendingChanges();
+        }
     }
 
     /**
@@ -573,6 +577,19 @@ public class RulesEngine {
      */
     public InsertType getInsertType() {
         return mInsertType;
+    }
+
+    // ---- Deletion ----
+
+    public void callOnRemovingChildren(AndroidXmlEditor editor, NodeProxy parentNode,
+            List<INode> children) {
+        if (parentNode != null) {
+            UiViewElementNode parentUiNode = parentNode.getNode();
+            IViewRule parentRule = loadRule(parentUiNode);
+            if (parentRule != null) {
+                parentRule.onRemovingChildren(children, parentNode);
+            }
+        }
     }
 
     // ---- private ---
@@ -726,6 +743,7 @@ public class RulesEngine {
             ClassLoader classLoader;
             if (realFqcn.startsWith("android.") || //$NON-NLS-1$
                     realFqcn.equals(VIEW_MERGE) ||
+                    realFqcn.endsWith(".GridLayout") || //$NON-NLS-1$ // Temporary special case
                     // FIXME: Remove this special case as soon as we pull
                     // the MapViewRule out of this code base and bundle it
                     // with the add ons
@@ -746,7 +764,6 @@ public class RulesEngine {
                 }
                 ruleClassName = packageName + "." + //$NON-NLS-1$
                     baseName + "Rule"; //$NON-NLS-1$
-
             } else {
                 // Initialize the user-classpath for 3rd party IViewRules, if necessary
                 if (mUserClassLoader == null) {

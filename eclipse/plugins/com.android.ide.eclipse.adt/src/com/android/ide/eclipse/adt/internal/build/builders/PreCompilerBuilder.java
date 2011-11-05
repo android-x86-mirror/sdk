@@ -30,6 +30,7 @@ import com.android.ide.eclipse.adt.internal.project.BaseProjectHelper;
 import com.android.ide.eclipse.adt.internal.project.FixLaunchConfig;
 import com.android.ide.eclipse.adt.internal.project.ProjectHelper;
 import com.android.ide.eclipse.adt.internal.project.XmlErrorHandler.BasicXmlErrorListener;
+import com.android.ide.eclipse.adt.internal.resources.manager.ResourceManager;
 import com.android.ide.eclipse.adt.internal.sdk.ProjectState;
 import com.android.ide.eclipse.adt.internal.sdk.Sdk;
 import com.android.ide.eclipse.adt.io.IFileWrapper;
@@ -253,6 +254,8 @@ public class PreCompilerBuilder extends BaseBuilder {
                 } else {
                     dv = new PreCompilerDeltaVisitor(this, sourceFolderPathList, mProcessors);
                     delta.accept(dv);
+                    // Notify the ResourceManager:
+                    ResourceManager.getInstance().processDelta(delta);
 
                     // record the state
                     mMustCompileResources |= dv.getCompileResources();
@@ -611,8 +614,7 @@ public class PreCompilerBuilder extends BaseBuilder {
 
             // handle libraries
             ArrayList<IFolder> libResFolders = new ArrayList<IFolder>();
-            ArrayList<IFolder> libOutputFolders = new ArrayList<IFolder>();
-            ArrayList<String> libJavaPackages = new ArrayList<String>();
+            StringBuilder libJavaPackages = null;
             if (libProjects != null) {
                 for (IProject lib : libProjects) {
                     IFolder libResFolder = lib.getFolder(SdkConstants.FD_RES);
@@ -623,26 +625,23 @@ public class PreCompilerBuilder extends BaseBuilder {
                     try {
                         String libJavaPackage = AndroidManifest.getPackage(new IFolderWrapper(lib));
                         if (libJavaPackage.equals(javaPackage) == false) {
-                            libJavaPackages.add(libJavaPackage);
-                            libOutputFolders.add(getGenManifestPackageFolder(libJavaPackage));
+                            if (libJavaPackages == null) {
+                                libJavaPackages = new StringBuilder(libJavaPackage);
+                            } else {
+                                libJavaPackages.append(":");
+                                libJavaPackages.append(libJavaPackage);
+                            }
                         }
                     } catch (Exception e) {
                     }
                 }
             }
-
-            execAapt(project, projectTarget, osOutputPath, osResPath, osManifestPath,
-                    mainPackageFolder, libResFolders, null /* custom java package */);
-
-            final int count = libOutputFolders.size();
-            if (count > 0) {
-                for (int i = 0 ; i < count ; i++) {
-                    IFolder libFolder = libOutputFolders.get(i);
-                    String libJavaPackage = libJavaPackages.get(i);
-                    execAapt(project, projectTarget, osOutputPath, osResPath, osManifestPath,
-                            libFolder, libResFolders, libJavaPackage);
-                }
+            String libPackages = null;
+            if (libJavaPackages != null) {
+                libPackages = libJavaPackages.toString();
             }
+            execAapt(project, projectTarget, osOutputPath, osResPath, osManifestPath,
+                    mainPackageFolder, libResFolders, libPackages);
         }
     }
 
@@ -659,13 +658,13 @@ public class PreCompilerBuilder extends BaseBuilder {
      * If <var>customJavaPackage</var> is not null, this must match the new destination triggered
      * by its value.
      * @param libResFolders the list of res folders for the library.
-     * @param customJavaPackage an optional javapackage to replace the main project java package.
+     * @param libraryPackages an optional list of javapackages to replace the main project java package.
      * can be null.
      * @throws AbortBuildException
      */
     private void execAapt(IProject project, IAndroidTarget projectTarget, String osOutputPath,
             String osResPath, String osManifestPath, IFolder packageFolder,
-            ArrayList<IFolder> libResFolders, String customJavaPackage) throws AbortBuildException {
+            ArrayList<IFolder> libResFolders, String libraryPackages) throws AbortBuildException {
         // We actually need to delete the manifest.java as it may become empty and
         // in this case aapt doesn't generate an empty one, but instead doesn't
         // touch it.
@@ -685,9 +684,9 @@ public class PreCompilerBuilder extends BaseBuilder {
             array.add("--auto-add-overlay"); //$NON-NLS-1$
         }
 
-        if (customJavaPackage != null) {
-            array.add("--custom-package"); //$NON-NLS-1$
-            array.add(customJavaPackage);
+        if (libraryPackages != null) {
+            array.add("--extra-packages"); //$NON-NLS-1$
+            array.add(libraryPackages);
         }
 
         array.add("-J"); //$NON-NLS-1$

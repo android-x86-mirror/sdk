@@ -39,9 +39,9 @@ import com.android.sdklib.repository.SdkRepoConstants;
 import com.android.sdklib.xml.AndroidXPathFactory;
 import com.android.sdkmanager.internal.repository.AboutPage;
 import com.android.sdkmanager.internal.repository.SettingsPage;
-import com.android.sdkuilib.internal.repository.PackagesPage;
 import com.android.sdkuilib.internal.repository.SdkUpdaterNoWindow;
 import com.android.sdkuilib.internal.repository.UpdaterPage;
+import com.android.sdkuilib.internal.repository.sdkman2.PackagesPage;
 import com.android.sdkuilib.internal.widgets.MessageBoxLog;
 import com.android.sdkuilib.repository.AvdManagerWindow;
 import com.android.sdkuilib.repository.SdkUpdaterWindow;
@@ -288,13 +288,11 @@ public class Main {
                 updateAdb();
 
             }
-        } else if (SdkCommandLine.VERB_DISPLAY.equals(verb)) {
-            if (SdkCommandLine.OBJECT_AVD.equals(directObject)) {
-                showAvdManagerWindow();
+        } else if (SdkCommandLine.VERB_SDK.equals(verb)) {
+            showSdkManagerWindow(false /*autoUpdate*/);
 
-            } else if (SdkCommandLine.OBJECT_SDK.equals(directObject)) {
-                showSdkManagerWindow(false /*autoUpdate*/);
-            }
+        } else if (SdkCommandLine.VERB_AVD.equals(verb)) {
+            showAvdManagerWindow();
 
         } else if (SdkCommandLine.VERB_DELETE.equals(verb) &&
                 SdkCommandLine.OBJECT_AVD.equals(directObject)) {
@@ -905,6 +903,28 @@ public class Main {
     }
 
     /**
+     * Displays the ABIs valid for the given target.
+     */
+    private void displayAbiList(IAndroidTarget target, String message) {
+        String[] abis = target.getAbiList();
+        mSdkLog.printf(message);
+        if (abis != null) {
+            boolean first = true;
+            for (String skin : abis) {
+                if (first == false) {
+                    mSdkLog.printf(", ");
+                } else {
+                    first = false;
+                }
+                mSdkLog.printf(skin);
+            }
+            mSdkLog.printf("\n");
+        } else {
+            mSdkLog.printf("no ABIs.\n");
+        }
+    }
+
+    /**
      * Displays the list of available AVDs for the given AvdManager.
      *
      * @param avdManager
@@ -1107,14 +1127,26 @@ public class Main {
                 oldAvdInfo = avdManager.getAvd(avdName, false /*validAvdOnly*/);
             }
 
-            // NOTE: need to update with command line processor selectivity
+            String abiType = mSdkCommandLine.getParamAbi();
+            if (target != null && (abiType == null || abiType.length() == 0)) {
+                String[] abis = target.getAbiList();
+                if (abis != null && abis.length == 1) {
+                    // Auto-select the single ABI available
+                    abiType = abis[0];
+                    mSdkLog.printf("Auto-selecting single ABI %1$s", abiType);
+                } else {
+                    displayAbiList(target, "Valid ABIs: ");
+                    errorAndExit("This platform has more than one ABI. Please specify one using --%1$s.",
+                            SdkCommandLine.KEY_ABI);
 
-            String preferredAbi = SdkConstants.ABI_ARMEABI;
+                }
+            }
+
             @SuppressWarnings("unused") // newAvdInfo is never read, yet useful for debugging
             AvdInfo newAvdInfo = avdManager.createAvd(avdFolder,
                     avdName,
                     target,
-                    preferredAbi,
+                    abiType,
                     skin,
                     mSdkCommandLine.getParamSdCard(),
                     hardwareConfig,

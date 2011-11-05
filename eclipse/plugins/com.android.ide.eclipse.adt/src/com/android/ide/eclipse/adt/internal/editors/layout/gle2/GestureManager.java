@@ -19,6 +19,7 @@ package com.android.ide.eclipse.adt.internal.editors.layout.gle2;
 import com.android.ide.common.api.DropFeedback;
 import com.android.ide.common.api.IViewRule;
 import com.android.ide.common.api.Rect;
+import com.android.ide.common.api.SegmentType;
 import com.android.ide.eclipse.adt.internal.editors.layout.gre.NodeProxy;
 import com.android.sdklib.SdkConstants;
 import com.android.util.Pair;
@@ -69,6 +70,9 @@ public class GestureManager {
 
     /** A listener for drag source events. */
     private final DragSourceListener mDragSourceListener = new CanvasDragSourceListener();
+
+    /** Tooltip shown during the gesture, or null */
+    private GestureToolTip mTooltip;
 
     /**
      * The list of overlays associated with {@link #mCurrentGesture}. Will be
@@ -363,7 +367,6 @@ public class GestureManager {
     /**
      * Update the Eclipse status message with any feedback messages from the given
      * {@link DropFeedback} object, or clean up if there is no more feedback to process
-     *
      * @param feedback the feedback whose message we want to display, or null to clear the
      *            message if previously set
      */
@@ -392,6 +395,26 @@ public class GestureManager {
             mDisplayingMessage = null;
             status.setMessage(null);
             status.setErrorMessage(null);
+        }
+
+        // Tooltip
+        if (feedback != null && feedback.tooltip != null) {
+            Pair<Boolean,Boolean> position = mCurrentGesture.getTooltipPosition();
+            boolean below = position.getFirst();
+            if (feedback.tooltipY != null) {
+                below = feedback.tooltipY == SegmentType.BOTTOM;
+            }
+            boolean toRightOf = position.getSecond();
+            if (feedback.tooltipX != null) {
+                toRightOf = feedback.tooltipX == SegmentType.RIGHT;
+            }
+            if (mTooltip == null) {
+                mTooltip = new GestureToolTip(mCanvas, below, toRightOf);
+            }
+            mTooltip.update(feedback.tooltip, below, toRightOf);
+        } else if (mTooltip != null) {
+            mTooltip.dispose();
+            mTooltip = null;
         }
     }
 
@@ -706,7 +729,7 @@ public class GestureManager {
 
                 if (!insideSelection) {
                     CanvasViewInfo vi = mCanvas.getViewHierarchy().findViewInfoAt(p);
-                    if (vi != null && !vi.isRoot()) {
+                    if (vi != null && !vi.isRoot() && !vi.isHidden()) {
                         selectionManager.selectSingle(vi);
                         insideSelection = true;
                     }
@@ -726,7 +749,7 @@ public class GestureManager {
                     } else {
                         // Only drag non-root items.
                         for (SelectionItem cs : selections) {
-                            if (!cs.isRoot()) {
+                            if (!cs.isRoot() && !cs.isHidden()) {
                                 mDragSelection.add(cs);
                             }
                         }
@@ -737,7 +760,7 @@ public class GestureManager {
             // If you are dragging a non-selected item, select it
             if (mDragSelection.isEmpty()) {
                 CanvasViewInfo vi = mCanvas.getViewHierarchy().findViewInfoAt(p);
-                if (vi != null && !vi.isRoot()) {
+                if (vi != null && !vi.isRoot() && !vi.isHidden()) {
                     selectionManager.selectSingle(vi);
                     mDragSelection.addAll(selections);
                 }
@@ -761,7 +784,8 @@ public class GestureManager {
 
             // If you drag on the -background-, we make that into a marquee
             // selection
-            if (!e.doit || (imageCount == 1 && mDragSelection.get(0).isRoot())) {
+            if (!e.doit || (imageCount == 1
+                    && (mDragSelection.get(0).isRoot() || mDragSelection.get(0).isHidden()))) {
                 boolean toggle = (mLastStateMask & (SWT.CTRL | SWT.SHIFT | SWT.COMMAND)) != 0;
                 startGesture(controlPoint,
                         new MarqueeGesture(mCanvas, toggle), mLastStateMask);

@@ -125,6 +125,12 @@ public final class Sdk  {
     private final HashMap<IAndroidTarget, TargetLoadBundle> mTargetDataStatusMap =
         new HashMap<IAndroidTarget, TargetLoadBundle>();
 
+    /**
+     * If true the target data will never load anymore. The only way to reload them is to
+     * completely reload the SDK with {@link #loadSdk(String)}
+     */
+    private boolean mDontLoadTargetData = false;
+
     private final String mDocBaseUrl;
 
     private final LayoutDeviceManager mLayoutDeviceManager = new LayoutDeviceManager();
@@ -444,6 +450,10 @@ public final class Sdk  {
         boolean loadData = false;
 
         synchronized (sLock) {
+            if (mDontLoadTargetData) {
+                return LoadStatus.FAILED;
+            }
+
             TargetLoadBundle bundle = mTargetDataStatusMap.get(target);
             if (bundle == null) {
                 bundle = new TargetLoadBundle();
@@ -622,6 +632,31 @@ public final class Sdk  {
         }
     }
 
+    /**
+     * Unload the SDK's target data.
+     *
+     * If <var>preventReload</var>, this effect is final until the SDK instance is changed
+     * through {@link #loadSdk(String)}.
+     *
+     * The goal is to unload the targets to be able to replace existing targets with new ones,
+     * before calling {@link #loadSdk(String)} to fully reload the SDK.
+     *
+     * @param preventReload prevent the data from being loaded again for the remaining live of
+     *   this {@link Sdk} instance.
+     */
+    public void unloadTargetData(boolean preventReload) {
+        synchronized (sLock) {
+            mDontLoadTargetData = preventReload;
+
+            // dispose of the target data.
+            for (AndroidTargetData data : mTargetDataMap.values()) {
+                data.dispose();
+            }
+
+            mTargetDataMap.clear();
+        }
+    }
+
     private Sdk(SdkManager manager, DexWrapper dexWrapper, AvdManager avdManager) {
         mManager = manager;
         mDexWrapper = dexWrapper;
@@ -660,11 +695,18 @@ public final class Sdk  {
         monitor.removeFileListener(mFileListener);
         monitor.removeResourceEventListener(mResourceEventListener);
 
-        // the IAndroidTarget objects are now obsolete so update the project states.
         synchronized (sLock) {
+            // the IAndroidTarget objects are now obsolete so update the project states.
             for (Entry<IProject, ProjectState> entry: sProjectStateMap.entrySet()) {
                 entry.getValue().setTarget(null);
             }
+
+            // dispose of the target data.
+            for (AndroidTargetData data : mTargetDataMap.values()) {
+                data.dispose();
+            }
+
+            mTargetDataMap.clear();
         }
     }
 
@@ -837,6 +879,40 @@ public final class Sdk  {
                 // this can only happen if the project does not exist or is not open, neither
                 // of which can happen here since we're processing a Project opened event.
             }
+
+            // convert older projects which use bin as the eclipse output folder into projects
+            // using bin/classes
+            IFolder javaOutput = BaseProjectHelper.getJavaOutputFolder(openedProject);
+            IFolder androidOutput = BaseProjectHelper.getAndroidOutputFolder(openedProject);
+            if (javaOutput.equals(androidOutput)) {
+                final IFolder newJavaOutput = javaOutput.getFolder(SdkConstants.FD_CLASSES_OUTPUT);
+                if (newJavaOutput.exists() == false) {
+                    Job job = new Job("Project bin convertion") {
+                        @Override
+                        protected IStatus run(IProgressMonitor monitor) {
+                            try {
+                                newJavaOutput.create(true /*force*/, true /*local*/,
+                                        monitor);
+
+                                // set the java output to this project.
+                                IJavaProject javaProject = JavaCore.create(openedProject);
+                                javaProject.setOutputLocation(newJavaOutput.getFullPath(),
+                                        monitor);
+
+                                openedProject.build(IncrementalProjectBuilder.CLEAN_BUILD, monitor);
+                            } catch (CoreException e) {
+                                return e.getStatus();
+                            }
+
+                            return Status.OK_STATUS;
+                        }
+                    };
+                    job.setPriority(Job.BUILD); // build jobs are run after other interactive jobs
+                    job.schedule();
+
+                }
+            }
+
 
             ProjectState openedState = getProjectState(openedProject);
             if (openedState != null) {

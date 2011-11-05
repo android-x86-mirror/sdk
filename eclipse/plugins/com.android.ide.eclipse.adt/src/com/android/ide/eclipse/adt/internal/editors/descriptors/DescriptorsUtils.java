@@ -16,6 +16,7 @@
 
 package com.android.ide.eclipse.adt.internal.editors.descriptors;
 
+import static com.android.ide.common.layout.LayoutConstants.ANDROID_URI;
 import static com.android.ide.common.layout.LayoutConstants.ATTR_ID;
 import static com.android.ide.common.layout.LayoutConstants.ATTR_LAYOUT_BELOW;
 import static com.android.ide.common.layout.LayoutConstants.ATTR_LAYOUT_HEIGHT;
@@ -25,11 +26,13 @@ import static com.android.ide.common.layout.LayoutConstants.EDIT_TEXT;
 import static com.android.ide.common.layout.LayoutConstants.EXPANDABLE_LIST_VIEW;
 import static com.android.ide.common.layout.LayoutConstants.FQCN_ADAPTER_VIEW;
 import static com.android.ide.common.layout.LayoutConstants.GALLERY;
+import static com.android.ide.common.layout.LayoutConstants.GRID_LAYOUT;
 import static com.android.ide.common.layout.LayoutConstants.GRID_VIEW;
 import static com.android.ide.common.layout.LayoutConstants.ID_PREFIX;
 import static com.android.ide.common.layout.LayoutConstants.LIST_VIEW;
 import static com.android.ide.common.layout.LayoutConstants.NEW_ID_PREFIX;
 import static com.android.ide.common.layout.LayoutConstants.RELATIVE_LAYOUT;
+import static com.android.ide.common.layout.LayoutConstants.SPACE;
 import static com.android.ide.common.layout.LayoutConstants.VALUE_FILL_PARENT;
 import static com.android.ide.common.layout.LayoutConstants.VALUE_WRAP_CONTENT;
 import static com.android.ide.eclipse.adt.internal.editors.layout.descriptors.LayoutDescriptors.REQUEST_FOCUS;
@@ -47,8 +50,8 @@ import org.eclipse.swt.graphics.Image;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -683,23 +686,28 @@ public final class DescriptorsUtils {
         // both W/H. Otherwise default to wrap_layout.
         ElementDescriptor descriptor = node.getDescriptor();
 
-        if (descriptor.getXmlLocalName().equals(REQUEST_FOCUS)) {
-            // Don't add ids etc to <requestFocus>
+        String name = descriptor.getXmlLocalName();
+        if (name.equals(REQUEST_FOCUS) || name.equals(SPACE)) {
+            // Don't add ids etc to <requestFocus>, or to grid spacers
             return;
         }
 
-        boolean fill = descriptor.hasChildren() &&
-                       node.getUiParent() instanceof UiDocumentNode;
-        node.setAttributeValue(
-                ATTR_LAYOUT_WIDTH,
-                SdkConstants.NS_RESOURCES,
-                fill ? VALUE_FILL_PARENT : VALUE_WRAP_CONTENT,
-                false /* override */);
-        node.setAttributeValue(
-                ATTR_LAYOUT_HEIGHT,
-                SdkConstants.NS_RESOURCES,
-                fill ? VALUE_FILL_PARENT : VALUE_WRAP_CONTENT,
-                false /* override */);
+        // Width and height are mandatory in all layouts except GridLayout
+        boolean setSize = !node.getUiParent().getDescriptor().getXmlName().equals(GRID_LAYOUT);
+        if (setSize) {
+            boolean fill = descriptor.hasChildren() &&
+                           node.getUiParent() instanceof UiDocumentNode;
+            node.setAttributeValue(
+                    ATTR_LAYOUT_WIDTH,
+                    SdkConstants.NS_RESOURCES,
+                    fill ? VALUE_FILL_PARENT : VALUE_WRAP_CONTENT,
+                    false /* override */);
+            node.setAttributeValue(
+                    ATTR_LAYOUT_HEIGHT,
+                    SdkConstants.NS_RESOURCES,
+                    fill ? VALUE_FILL_PARENT : VALUE_WRAP_CONTENT,
+                    false /* override */);
+        }
 
         String freeId = getFreeWidgetId(node);
         if (freeId != null) {
@@ -710,8 +718,11 @@ public final class DescriptorsUtils {
                     false /* override */);
         }
 
-        // Don't set default text value into edit texts - they typically start out blank
-        if (!descriptor.getXmlLocalName().equals(EDIT_TEXT)) {
+        // Set a text attribute on textual widgets -- but only on those that define a text
+        // attribute
+        if (descriptor.definesAttribute(ANDROID_URI, ATTR_TEXT)
+                // Don't set default text value into edit texts - they typically start out blank
+                && !descriptor.getXmlLocalName().equals(EDIT_TEXT)) {
             String type = getBasename(descriptor.getUiName());
             node.setAttributeValue(
                 ATTR_TEXT,

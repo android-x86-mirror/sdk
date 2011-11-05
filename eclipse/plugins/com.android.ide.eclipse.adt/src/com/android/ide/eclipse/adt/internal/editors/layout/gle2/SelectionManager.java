@@ -15,10 +15,12 @@
  */
 package com.android.ide.eclipse.adt.internal.editors.layout.gle2;
 
+import static com.android.ide.common.layout.LayoutConstants.FQCN_SPACE;
 import static com.android.ide.eclipse.adt.internal.editors.layout.gle2.SelectionHandle.PIXEL_MARGIN;
 import static com.android.ide.eclipse.adt.internal.editors.layout.gle2.SelectionHandle.PIXEL_RADIUS;
 
 import com.android.ide.common.api.INode;
+import com.android.ide.common.layout.GridLayoutRule;
 import com.android.ide.eclipse.adt.internal.editors.descriptors.ElementDescriptor;
 import com.android.ide.eclipse.adt.internal.editors.layout.LayoutEditor;
 import com.android.ide.eclipse.adt.internal.editors.layout.uimodel.UiViewElementNode;
@@ -335,6 +337,10 @@ public class SelectionManager implements ISelectionProvider {
 
         CanvasViewInfo vi = mCanvas.getViewHierarchy().findViewInfoAt(p);
 
+        if (vi != null && vi.isHidden()) {
+            vi = vi.getParent();
+        }
+
         if (isMultiClick && !isCycleClick) {
             // Case where shift is pressed: pointed object is toggled.
 
@@ -551,6 +557,9 @@ public class SelectionManager implements ISelectionProvider {
 
         mSelections.clear();
         for (CanvasViewInfo viewInfo : viewInfos) {
+            if (viewInfo.isHidden()) {
+                continue;
+            }
             mSelections.add(createSelection(viewInfo));
         }
 
@@ -814,6 +823,15 @@ public class SelectionManager implements ISelectionProvider {
         for (INode node : nodes) {
             CanvasViewInfo viewInfo = mCanvas.getViewHierarchy().findViewInfoFor(node);
             if (viewInfo != null) {
+                if (nodes.size() > 1 && viewInfo.isHidden()) {
+                    // Skip spacers - unless you're dropping just one
+                    continue;
+                }
+                if (GridLayoutRule.sDebugGridLayout && viewInfo.getName().equals(FQCN_SPACE)) {
+                    // In debug mode they might not be marked as hidden but we never never
+                    // want to select these guys
+                    continue;
+                }
                 newChildren.add(viewInfo);
             }
         }

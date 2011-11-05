@@ -16,8 +16,11 @@
 
 package com.android.ide.eclipse.adt.internal.editors;
 
+import static org.eclipse.wst.sse.ui.internal.actions.StructuredTextEditorActionConstants.ACTION_NAME_FORMAT_DOCUMENT;
+
 import com.android.ide.eclipse.adt.AdtPlugin;
 import com.android.ide.eclipse.adt.internal.editors.uimodel.UiElementNode;
+import com.android.ide.eclipse.adt.internal.preferences.AdtPrefs;
 import com.android.ide.eclipse.adt.internal.sdk.AndroidTargetData;
 import com.android.ide.eclipse.adt.internal.sdk.Sdk;
 import com.android.ide.eclipse.adt.internal.sdk.Sdk.ITargetChangeListener;
@@ -121,6 +124,14 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
     private boolean mIsCreatingPage = false;
 
     /**
+     * Flag used to ignore XML model updates. For example, the flag is set during
+     * formatting. A format operation should completely preserve the semantics of the XML
+     * so the document listeners can use this flag to skip updating the model when edits
+     * are observed during a formatting operation
+     */
+    protected boolean mIgnoreXmlUpdate;
+
+    /**
      * Flag indicating we're inside {@link #wrapEditXmlModel(Runnable)}.
      * This is a counter, which allows us to nest the edit XML calls.
      * There is no pending operation when the counter is at zero.
@@ -206,6 +217,16 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
      */
     protected void xmlModelChanged(Document xml_doc) {
         // pass
+    }
+
+    /**
+     * Controls whether XML models are ignored or not.
+     *
+     * @param ignore when true, ignore all subsequent XML model updates, when false start
+     *            processing XML model updates again
+     */
+    public void setIgnoreXmlUpdate(boolean ignore) {
+        mIgnoreXmlUpdate = ignore;
     }
 
     // ---- Base Class Overrides, Interfaces Implemented ----
@@ -471,6 +492,18 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
     @Override
     public void doSave(IProgressMonitor monitor) {
         commitPages(true /* onSave */);
+
+        if (AdtPrefs.getPrefs().isFormatOnSave()) {
+            IAction action = mTextEditor.getAction(ACTION_NAME_FORMAT_DOCUMENT);
+            if (action != null) {
+                try {
+                    mIgnoreXmlUpdate = true;
+                    action.run();
+                } finally {
+                    mIgnoreXmlUpdate = false;
+                }
+            }
+        }
 
         // The actual "save" operation is done by the Structured XML Editor
         getEditor(mTextPageIndex).doSave(monitor);
@@ -794,11 +827,55 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
      * @param editAction Something that will change the XML.
      */
     public final void wrapEditXmlModel(Runnable editAction) {
+        wrapEditXmlModel(editAction, null);
+    }
+
+    /**
+     * Executor which performs the given action under an edit lock (and optionally as a
+     * single undo event).
+     *
+     * @param editAction the action to be executed
+     * @param undoLabel if non null, the edit action will be run as a single undo event
+     *            and the label used as the name of the undoable action
+     */
+    private final void wrapEditXmlModel(Runnable editAction, String undoLabel) {
         IStructuredModel model = null;
+        int undoReverseCount = 0;
         try {
+
             if (mIsEditXmlModelPending == 0) {
                 try {
                     model = getModelForEdit();
+                    if (undoLabel != null) {
+                        // Run this action as an undoable unit.
+                        // We have to do it more than once, because in some scenarios
+                        // Eclipse WTP decides to cancel the current undo command on its
+                        // own -- see http://code.google.com/p/android/issues/detail?id=15901
+                        // for one such call chain. By nesting these calls several times
+                        // we've incrementing the command count such that a couple of
+                        // cancellations are ignored. Interfering which this mechanism may
+                        // sound dangerous, but it appears that this undo-termination is
+                        // done for UI reasons to anticipate what the user wants, and we know
+                        // that in *our* scenarios we want the entire unit run as a single
+                        // unit. Here's what the documentation for
+                        // IStructuredTextUndoManager#forceEndOfPendingCommand says
+                        //   "Normally, the undo manager can figure out the best
+                        //    times when to end a pending command and begin a new
+                        //    one ... to the structure of a structured
+                        //    document. There are times, however, when clients may
+                        //    wish to override those algorithms and end one earlier
+                        //    than normal. The one known case is for multi-page
+                        //    editors. If a user is on one page, and type '123' as
+                        //    attribute value, then click around to other parts of
+                        //    page, or different pages, then return to '123|' and
+                        //    type 456, then "undo" they typically expect the undo
+                        //    to just undo what they just typed, the 456, not the
+                        //    whole attribute value."
+                        for (int i = 0; i < 4; i++) {
+                            model.beginRecording(this, undoLabel);
+                            undoReverseCount++;
+                        }
+                    }
                     model.aboutToChangeModel();
                 } catch (Throwable t) {
                     // This is never supposed to happen unless we suddenly don't have a model.
@@ -812,8 +889,18 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
         } finally {
             mIsEditXmlModelPending--;
             if (model != null) {
-                // Notify the model we're done modifying it. This must *always* be executed.
-                model.changedModel();
+                try {
+                    // Notify the model we're done modifying it. This must *always* be executed.
+                    model.changedModel();
+
+                    // Clean up the undo unit. This is done more than once as explained
+                    // above for beginRecording.
+                    for (int i = 0; i < undoReverseCount; i++) {
+                        model.endRecording(this);
+                    }
+                } catch (Exception e) {
+                    AdtPlugin.log(e, "Failed to clean up undo unit");
+                }
                 model.releaseFromEdit();
 
                 if (mIsEditXmlModelPending < 0) {
@@ -828,7 +915,7 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
 
     /**
      * Creates an "undo recording" session by calling the undoableAction runnable
-     * using {@link #beginUndoRecording(String)} and {@link #endUndoRecording()}.
+     * under an undo session.
      * <p/>
      * This also automatically starts an edit XML session, as if
      * {@link #wrapEditXmlModel(Runnable)} had been called.
@@ -838,85 +925,21 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
      *
      * @param label The label for the undo operation. Can be null. Ideally we should really try
      *              to put something meaningful if possible.
+     * @param undoableAction the action to be run as a single undoable unit
      */
     public void wrapUndoEditXmlModel(String label, Runnable undoableAction) {
-        boolean recording = false;
-        try {
-            recording = beginUndoRecording(label);
-
-            if (!recording) {
-                // This can only happen if we don't have an underlying model to edit
-                // or it's not a structured document, which in this context is
-                // highly unlikely. Abort the operation in this case.
-                AdtPlugin.logAndPrintError(
-                    null, //exception,
-                    getProject() != null ? getProject().getName() : "XML Editor", //$NON-NLS-1$ //tag
-                    "Action '%s' failed: could not start an undo session, document might be corrupt.", //$NON-NLS-1$
-                    label);
-                return;
-            }
-
-            wrapEditXmlModel(undoableAction);
-        } finally {
-            if (recording) {
-                endUndoRecording();
-            }
-        }
+        assert label != null : "All undoable actions should have a label";
+        wrapEditXmlModel(undoableAction, label == null ? "" : label); //$NON-NLS-1$
     }
 
     /**
      * Returns true when the runnable of {@link #wrapEditXmlModel(Runnable)} is currently
-     * being executed. This means it is safe to actually edit the XML model returned
-     * by {@link #getModelForEdit()}.
+     * being executed. This means it is safe to actually edit the XML model.
+     *
+     * @return true if the XML model is already locked for edits
      */
     public boolean isEditXmlModelPending() {
         return mIsEditXmlModelPending > 0;
-    }
-
-    /**
-     * Starts an "undo recording" session. This is managed by the underlying undo manager
-     * associated to the structured XML model.
-     * <p/>
-     * There <em>must</em> be a corresponding call to {@link #endUndoRecording()}.
-     * <p/>
-     * beginUndoRecording/endUndoRecording calls can be nested (inner calls are ignored, only one
-     * undo operation is recorded.)
-     * To guarantee that, only access this via {@link #wrapUndoEditXmlModel(String, Runnable)}.
-     *
-     * @param label The label for the undo operation. Can be null but we should really try to put
-     *              something meaningful if possible.
-     * @return True if the undo recording actually started, false if any kind of error occurred.
-     *         {@link #endUndoRecording()} should only be called if True is returned.
-     */
-    private boolean beginUndoRecording(String label) {
-        IStructuredModel model = getModelForEdit();
-        if (model != null) {
-            try {
-                model.beginRecording(this, label);
-                return true;
-            } finally {
-                model.releaseFromEdit();
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Ends an "undo recording" session.
-     * <p/>
-     * This is the counterpart call to {@link #beginUndoRecording(String)} and should only be
-     * used if the initial call returned true.
-     * To guarantee that, only access this via {@link #wrapUndoEditXmlModel(String, Runnable)}.
-     */
-    private void endUndoRecording() {
-        IStructuredModel model = getModelForEdit();
-        if (model != null) {
-            try {
-                model.endRecording(this);
-            } finally {
-                model.releaseFromEdit();
-            }
-        }
     }
 
     /**
@@ -1003,14 +1026,31 @@ public abstract class AndroidXmlEditor extends FormEditor implements IResourceCh
      *
      * @param start the beginning offset
      * @param length the length of the region to show
+     * @param frontTab if true, front the tab, otherwise just make the selection but don't
+     *     change the active tab
      */
-    public void show(int start, int length) {
+    public void show(int start, int length, boolean frontTab) {
         IEditorPart textPage = getEditor(mTextPageIndex);
         if (textPage instanceof StructuredTextEditor) {
             StructuredTextEditor editor = (StructuredTextEditor) textPage;
-            setActivePage(AndroidXmlEditor.TEXT_EDITOR_ID);
+            if (frontTab) {
+                setActivePage(AndroidXmlEditor.TEXT_EDITOR_ID);
+            }
             editor.selectAndReveal(start, length);
+            if (frontTab) {
+                editor.setFocus();
+            }
         }
+    }
+
+    /**
+     * Returns true if this editor has more than one page (usually a graphical view and an
+     * editor)
+     *
+     * @return true if this editor has multiple pages
+     */
+    public boolean hasMultiplePages() {
+        return getPageCount() > 1;
     }
 
     /**

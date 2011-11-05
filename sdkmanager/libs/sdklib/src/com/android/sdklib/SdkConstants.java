@@ -182,6 +182,8 @@ public final class SdkConstants {
     public final static String FD_APK_NATIVE_LIBS = "lib"; //$NON-NLS-1$
     /** Default output folder name, i.e. "bin" */
     public final static String FD_OUTPUT = "bin"; //$NON-NLS-1$
+    /** Classes output folder name, i.e. "classes" */
+    public final static String FD_CLASSES_OUTPUT = "classes"; //$NON-NLS-1$
     /** proguard output folder for mapping, etc.. files */
     public final static String FD_PROGUARD = "proguard"; //$NON-NLS-1$
 
@@ -356,6 +358,9 @@ public final class SdkConstants {
 
     /** SDK property: ant templates revision */
     public final static String PROP_SDK_ANT_TEMPLATES_REVISION = "sdk.ant.templates.revision"; //$NON-NLS-1$
+
+    /** SDK property: default skin */
+    public final static String PROP_SDK_DEFAULT_SKIN = "sdk.skin.default"; //$NON-NLS-1$
 
 
     /* Android Class Constants */

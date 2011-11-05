@@ -142,6 +142,22 @@ public class DropFeedback {
     public String errorMessage;
 
     /**
+     * A message to be displayed in a tooltip to the user, which should be short, but
+     * can be multiple lines (use embedded newlines)
+     */
+    public String tooltip;
+
+    /**
+     * Horizontal alignment for the tooltip, or null if no preference
+     */
+    public SegmentType tooltipX;
+
+    /**
+     * Vertical alignment for the tooltip, or null if no preference
+     */
+    public SegmentType tooltipY;
+
+    /**
      * A mask of the currently held keyboard modifier keys - some combination of
      * {@link #MODIFIER1}, {@link #MODIFIER2}, {@link #MODIFIER3}, or none.
      */

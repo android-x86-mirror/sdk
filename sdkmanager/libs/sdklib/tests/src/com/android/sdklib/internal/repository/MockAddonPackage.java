@@ -31,12 +31,32 @@ public class MockAddonPackage extends AddonPackage {
 
     /**
      * Creates a {@link MockAddonTarget} with the requested base platform and addon revision
-     * and then a {@link MockAddonPackage} wrapping it.
+     * and then a {@link MockAddonPackage} wrapping it and a default name of "addon".
      *
      * By design, this package contains one and only one archive.
      */
     public MockAddonPackage(MockPlatformPackage basePlatform, int revision) {
-        super(new MockAddonTarget(basePlatform.getTarget(), revision), null /*props*/);
+        this("addon", basePlatform, revision); //$NON-NLS-1$
+    }
+
+    /**
+     * Creates a {@link MockAddonTarget} with the requested base platform and addon revision
+     * and then a {@link MockAddonPackage} wrapping it.
+     *
+     * By design, this package contains one and only one archive.
+     */
+    public MockAddonPackage(String name, MockPlatformPackage basePlatform, int revision) {
+        super(new MockAddonTarget(name, basePlatform.getTarget(), revision), null /*props*/);
+    }
+
+    public MockAddonPackage(
+            SdkSource source,
+            String name,
+            MockPlatformPackage basePlatform,
+            int revision) {
+        super(source,
+              new MockAddonTarget(name, basePlatform.getTarget(), revision),
+              null /*props*/);
     }
 
     /**
@@ -47,8 +67,10 @@ public class MockAddonPackage extends AddonPackage {
 
         private final IAndroidTarget mParentTarget;
         private final int mRevision;
+        private final String mName;
 
-        public MockAddonTarget(IAndroidTarget parentTarget, int revision) {
+        public MockAddonTarget(String name, IAndroidTarget parentTarget, int revision) {
+            mName = name;
             mParentTarget = parentTarget;
             mRevision = revision;
         }
@@ -83,10 +105,6 @@ public class MockAddonPackage extends AddonPackage {
 
         public String getLocation() {
             return "";
-        }
-
-        public String getName() {
-            return "mock addon target";
         }
 
         public IOptionalLibrary[] getOptionalLibraries() {
@@ -133,12 +151,16 @@ public class MockAddonPackage extends AddonPackage {
             return 0;
         }
 
-        public String getVendor() {
-            return null;
-        }
-
         public AndroidVersion getVersion() {
             return mParentTarget.getVersion();
+        }
+
+        public String getName() {
+            return mName;
+        }
+
+        public String getVendor() {
+            return mParentTarget.getVendor();
         }
 
         public String getVersionName() {

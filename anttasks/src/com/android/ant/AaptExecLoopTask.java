@@ -18,7 +18,6 @@ package com.android.ant;
 
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Project;
-import org.apache.tools.ant.Task;
 import org.apache.tools.ant.taskdefs.ExecTask;
 import org.apache.tools.ant.types.Path;
 
@@ -51,7 +50,7 @@ import java.util.ArrayList;
  * <tr><td></td><td></td><td></td></tr>
  * </table>
  */
-public final class AaptExecLoopTask extends Task {
+public final class AaptExecLoopTask extends BaseTask {
 
     /**
      * Class representing a &lt;nocompress&gt; node in the main task XML.
@@ -77,6 +76,7 @@ public final class AaptExecLoopTask extends Task {
     private boolean mForce = true; // true due to legacy reasons
     private boolean mDebug = false;
     private boolean mVerbose = false;
+    private boolean mUseCrunchCache = false;
     private int mVersionCode = 0;
     private String mManifest;
     private ArrayList<Path> mResources;
@@ -118,6 +118,14 @@ public final class AaptExecLoopTask extends Task {
      */
     public void setVerbose(boolean verbose) {
         mVerbose = verbose;
+    }
+
+    /**
+     * Sets the value of the "usecrunchcache" attribute
+     * @param usecrunch whether to use the crunch cache.
+     */
+    public void setNoCrunch(boolean nocrunch) {
+        mUseCrunchCache = nocrunch;
     }
 
     public void setVersioncode(String versionCode) {
@@ -253,48 +261,87 @@ public final class AaptExecLoopTask extends Task {
     public void execute() throws BuildException {
         Project taskProject = getProject();
 
-        // first do a full resource package
-        callAapt(null /*customPackage*/);
+        String libPkgProp = null;
 
         // if the parameters indicate generation of the R class, check if
         // more R classes need to be created for libraries.
         if (mRFolder != null && new File(mRFolder).isDirectory()) {
-            String libPkgProp = taskProject.getProperty(AntConstants.PROP_PROJECT_LIBS_PKG);
+            libPkgProp = taskProject.getProperty(AntConstants.PROP_PROJECT_LIBS_PKG);
             if (libPkgProp != null) {
-                // get the main package to compare in case the libraries use the same
-                String mainPackage = taskProject.getProperty(AntConstants.PROP_MANIFEST_PACKAGE);
-
-                String[] libPkgs = libPkgProp.split(";");
-                for (String libPkg : libPkgs) {
-                    if (libPkg.length() > 0 && mainPackage.equals(libPkg) == false) {
-                        // FIXME: instead of recreating R.java from scratch, maybe copy
-                        // the files (R.java and manifest.java)? This would force to replace
-                        // the package line on the fly.
-                        callAapt(libPkg);
-                    }
-                }
+                // Replace ";" with ":" since that's what aapt expects
+                libPkgProp = libPkgProp.replace(';', ':');
             }
         }
+        // Call aapt. If there are libraries, we'll pass a non-null string of libs.
+        callAapt(libPkgProp);
     }
 
     /**
      * Calls aapt with the given parameters.
      * @param resourceFilter the resource configuration filter to pass to aapt (if configName is
      * non null)
-     * @param customPackage an optional custom package.
+     * @param extraPackages an optional list of colon-separated packages. Can be null
+     *        Ex: com.foo.one:com.foo.two:com.foo.lib
      */
-    private void callAapt(String customPackage) {
+    private void callAapt(String extraPackages) {
         Project taskProject = getProject();
 
         final boolean generateRClass = mRFolder != null && new File(mRFolder).isDirectory();
 
+        // Get whether we have libraries
+        Object libResRef = taskProject.getReference(AntConstants.PROP_PROJECT_LIBS_RES_REF);
+
+        // Set up our folders to check for changed files
+        ArrayList<File> watchPaths = new ArrayList<File>();
+        // We need to watch for changes in the main project res folder
+        for (Path pathList : mResources) {
+            for (String path : pathList.list()) {
+                watchPaths.add(new File(path));
+            }
+        }
+        // and if libraries exist, in their res folders
+        if (libResRef instanceof Path) {
+            for (String path : ((Path)libResRef).list()) {
+                watchPaths.add(new File(path));
+            }
+        }
+        // If we're here to generate a .ap_ file we need to watch assets as well
+        if (!generateRClass) {
+            File assetsDir = new File(mAssets);
+            if (mAssets != null && assetsDir.isDirectory()) {
+                watchPaths.add(assetsDir);
+            }
+        }
+
+        // Now we figure out what we need to do
         if (generateRClass) {
-        } else if (mResourceFilter == null) {
-            System.out.println("Creating full resource package...");
+            // Check to see if our dependencies have changed. If not, then skip
+            if (initDependencies(mRFolder + File.separator + "R.d", watchPaths)
+                              && dependenciesHaveChanged() == false) {
+                System.out.println("No changed resources. R.java and Manifest.java untouched.");
+                return;
+            }
         } else {
-            System.out.println(String.format(
-                    "Creating resource package with filter: (%1$s)...",
-                    mResourceFilter));
+            // Find our dependency file. It should have the same name as our target .ap_ but
+            // with a .d extension
+            String dependencyFilePath = mApkFolder + File.separator + mApkName;
+            dependencyFilePath =
+                 dependencyFilePath.substring(0, dependencyFilePath.lastIndexOf(".")) + ".d";
+
+            // Check to see if our dependencies have changed
+            if (initDependencies(dependencyFilePath , watchPaths)
+                            && dependenciesHaveChanged() == false) {
+                System.out.println("No changed resources or assets. " + dependencyFilePath
+                                    + " remains untouched");
+                return;
+            }
+            if (mResourceFilter == null) {
+                System.out.println("Creating full resource package...");
+            } else {
+                System.out.println(String.format(
+                        "Creating resource package with filter: (%1$s)...",
+                        mResourceFilter));
+            }
         }
 
         // create a task for the default apk.
@@ -307,6 +354,11 @@ public final class AaptExecLoopTask extends Task {
 
         // aapt command. Only "package" is supported at this time really.
         task.createArg().setValue(mCommand);
+
+        // No crunch flag
+        if (mUseCrunchCache) {
+            task.createArg().setValue("--no-crunch");
+        }
 
         // force flag
         if (mForce) {
@@ -351,13 +403,12 @@ public final class AaptExecLoopTask extends Task {
             }
         }
 
-        if (customPackage != null) {
-            task.createArg().setValue("--custom-package");
-            task.createArg().setValue(customPackage);
+        if (extraPackages != null) {
+            task.createArg().setValue("--extra-packages");
+            task.createArg().setValue(extraPackages);
         }
 
         // if the project contains libraries, force auto-add-overlay
-        Object libResRef = taskProject.getReference(AntConstants.PROP_PROJECT_LIBS_RES_REF);
         if (libResRef != null) {
             task.createArg().setValue("--auto-add-overlay");
         }
@@ -428,6 +479,9 @@ public final class AaptExecLoopTask extends Task {
             task.createArg().setValue("-J");
             task.createArg().setValue(mRFolder);
         }
+
+        // Use dependency generation
+        task.createArg().setValue("--generate-dependencies");
 
         // final setup of the task
         task.setProject(taskProject);

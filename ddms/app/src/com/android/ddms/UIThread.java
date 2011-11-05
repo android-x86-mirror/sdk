@@ -29,6 +29,7 @@ import com.android.ddmlib.ClientData.MethodProfilingStatus;
 import com.android.ddmlib.Log.ILogOutput;
 import com.android.ddmlib.Log.LogLevel;
 import com.android.ddmuilib.AllocationPanel;
+import com.android.ddmuilib.DdmUiPreferences;
 import com.android.ddmuilib.DevicePanel;
 import com.android.ddmuilib.EmulatorControlPanel;
 import com.android.ddmuilib.HeapPanel;
@@ -46,6 +47,8 @@ import com.android.ddmuilib.explorer.DeviceExplorer;
 import com.android.ddmuilib.handler.BaseFileHandler;
 import com.android.ddmuilib.handler.MethodProfilingHandler;
 import com.android.ddmuilib.log.event.EventLogPanel;
+import com.android.ddmuilib.logcat.LogCatPanel;
+import com.android.ddmuilib.logcat.LogCatReceiver;
 import com.android.ddmuilib.logcat.LogColors;
 import com.android.ddmuilib.logcat.LogFilter;
 import com.android.ddmuilib.logcat.LogPanel;
@@ -221,7 +224,18 @@ public class UIThread implements IUiSelectionListener, IClientChangeListener {
     }
 
 
-    private LogPanel mLogPanel;
+    /**
+     * Flag to indicate whether to use the old or the new logcat view. This is a
+     * temporary workaround that will be removed once the new view is complete.
+     */
+    private static final String USE_NEW_LOGCAT_VIEW =
+            System.getenv("ANDROID_USE_NEW_LOGCAT_VIEW");
+    private boolean useOldLogCatView() {
+        return USE_NEW_LOGCAT_VIEW == null;
+    }
+
+    private LogPanel mLogPanel; /* only valid when useOldLogCatView() == true */
+    private LogCatPanel mLogCatPanel; /* only valid when useOldLogCatView() == false */
 
     private ToolItemAction mCreateFilterAction;
     private ToolItemAction mDeleteFilterAction;
@@ -497,7 +511,9 @@ public class UIThread implements IUiSelectionListener, IClientChangeListener {
             if (!mDisplay.readAndDispatch())
                 mDisplay.sleep();
         }
-        mLogPanel.stopLogCat(true);
+        if (useOldLogCatView()) {
+            mLogPanel.stopLogCat(true);
+        }
 
         mDevicePanel.dispose();
         for (TablePanel panel : mPanels) {
@@ -944,7 +960,12 @@ public class UIThread implements IUiSelectionListener, IClientChangeListener {
         panelArea.setLayout(new FormLayout());
 
         createTopPanel(topPanel, darkGray);
-        createBottomPanel(bottomPanel);
+
+        if (useOldLogCatView()) {
+            createBottomPanel(bottomPanel);
+        } else {
+            createLogCatView(bottomPanel);
+        }
 
         // form layout data
         FormData data = new FormData();
@@ -993,7 +1014,9 @@ public class UIThread implements IUiSelectionListener, IClientChangeListener {
         mTableListener = new TableFocusListener();
 
         // now set up the listener in the various panels
-        mLogPanel.setTableFocusListener(mTableListener);
+        if (useOldLogCatView()) {
+            mLogPanel.setTableFocusListener(mTableListener);
+        }
         mEventLogPanel.setTableFocusListener(mTableListener);
         for (TablePanel p : mPanels) {
             if (p != null) {
@@ -1342,6 +1365,15 @@ public class UIThread implements IUiSelectionListener, IClientChangeListener {
         mLogPanel.startLogCat(mCurrentDevice);
     }
 
+    private void createLogCatView(Composite parent) {
+        mLogCatPanel = new LogCatPanel(new LogCatReceiver(), DdmUiPreferences.getStore());
+        mLogCatPanel.createPanel(parent);
+
+        if (mCurrentDevice != null) {
+            mLogCatPanel.deviceSelected(mCurrentDevice);
+        }
+    }
+
     /*
      * Create the contents of the left panel: a table of VMs.
      */
@@ -1682,7 +1714,11 @@ public class UIThread implements IUiSelectionListener, IClientChangeListener {
             }
 
             mEmulatorPanel.deviceSelected(mCurrentDevice);
-            mLogPanel.deviceSelected(mCurrentDevice);
+            if (useOldLogCatView()) {
+                mLogPanel.deviceSelected(mCurrentDevice);
+            } else {
+                mLogCatPanel.deviceSelected(mCurrentDevice);
+            }
             if (mEventLogPanel != null) {
                 mEventLogPanel.deviceSelected(mCurrentDevice);
             }
